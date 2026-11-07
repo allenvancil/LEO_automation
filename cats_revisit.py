@@ -15,7 +15,7 @@ CSV_PATH      = "scope_log.csv"     # appended to (created if missing)
 SHOT_DIR      = "scope_shots"       # screen shots will be saved here
 ACQ_SECONDS   = 5
 
-JITTER_TIME_PERDIV = 100e-9          # <-- set up the jitter time/div, most scopes 10 div of entire display, so 100 ns/div = 1 us window, 50 ns/div = 500 ns window, etc.
+JITTER_TIME_PERDIV = 100e-6          # <-- set up the jitter time/div, most scopes 10 div of entire display, so 100 ns/div = 1 us window, 50 ns/div = 500 ns window, etc.
 SCOPE_HDIVS        = 10             # 6 Series has 10 horizontal divisions
 
 MEAS_SLOTS = {
@@ -158,7 +158,7 @@ def jitter_setup(inst):
     inst.write("CLEAR")
     inst.query("*OPC?")
     inst.write("ACQuire:STATE RUN")
-    print(f"Collecting for {ACQ_SECONDS}s...")
+    print(f"Collecting for {ACQ_SECONDS}s...")  ###  this tell how long jitter stat pts taken
     time.sleep(ACQ_SECONDS)
     inst.write("ACQuire:STATE STOP")
     inst.query("*OPC?")
@@ -217,6 +217,7 @@ def main():
     # connect to scope
     inst = connect(SCOPE_IP)
     print("Connected:", inst.query("*IDN?").strip())
+    time.sleep(2)
     
     def _safe(txt):
         return "".join(c if (c.isalnum() or c == "-") else "_" for c in txt).strip("_") 
@@ -224,14 +225,16 @@ def main():
     ## save initial time interval, query asking what is the current time interval in s/div
     original_tb = float(inst.query("HORizontal:SCAle?").strip())
     print(f"  original timebase = {original_tb:g} s/div (will restore on exit)")
-    time.sleep(1)
+    time.sleep(2)
     
+    #########  this only measures the initial 3 slots (Vppin, Vppout, t-delay) and screenshot #################
     vals = {}
     for name, slot in MEAS_SLOTS.items():
         if name in JITTER_TYPES:
             continue                      # jitter is measured in Stage 2
         vals[name] = read_meas(inst, slot)  #output of above function
         print(f"  {name:22s} = {fmt(vals[name])}")
+    time.sleep(2)
         
     # Input voltage = the MEASURED CH1 Vpp (at the original timebase).
     input_voltage = (f"{vals['Vpp_input_ch1']:.3f} Vpp"
@@ -244,6 +247,8 @@ def main():
     take_screenshot(inst, before_path)
     print("Screenshot (before) ->", before_path)
     
+    time.sleep(2)
+############################################################################################
         # ========================================================================
     # STAGE 2 -- JITTER timebase: change the window, measure ONLY jitter.
     # ========================================================================
@@ -251,6 +256,7 @@ def main():
     ## will set preestablished jitter time window, print in terminal
     jitter_window_s = jitter_time_window(inst, JITTER_TIME_PERDIV)
     vals["jitter_time_interval"] = jitter_window_s    # give time interval value
+    time.sleep(2)
     
     results = jitter_setup(inst)          # runs once: (mean, sigma, min, max)
     for name, value in zip(JITTER_TYPES, results):
@@ -264,6 +270,7 @@ def main():
     after_path = os.path.join(SHOT_DIR, f"shot_{cond_tag}_{ts}_after.png")
     take_screenshot(inst, after_path)
     print("Screenshot (after)  ->", after_path)
+    time.sleep(2)
     
     ### creating and/or appending measurement in vals to csv
     new_file = not os.path.exists(CSV_PATH)   ## CSV_PATH = "scope_log.csv"
@@ -287,6 +294,7 @@ def main():
         ])
         print(f"Row appended -> {CSV_PATH}")
         
+    
     inst.write(f"HORizontal:SCAle {original_tb}")
     print(f"  timebase restored to {original_tb:g} s/div")
     
