@@ -8,15 +8,16 @@ import pyvisa
 
 # create a new CSV file with headers if it doesn't exist 
 SCOPE_IP      = "192.168.0.90"
-TEMPERATURE   = "25"              # degree C, need to manually input for every temp change
+TEMPERATURE   = "20"              # degree C, need to manually input for every temp change
 DEVICE    =  "LMK00105_A"          # device name, need to manually input for every device change,  input in row in the CSV file
 
-CSV_PATH      = "scope_log.csv"     # appended to (created if missing)
-SHOT_DIR      = "scope_shots"       # screen shots will be saved here
-ACQ_SECONDS   = 5
+CSV_PATH      = "log_1pps_AFG_11-23.csv"     # appended to (created if missing)
+SHOT_DIR      = "ss_1pps_AFG_11-23"       # screen shots will be saved here
+ACQ_SECONDS   = 57600
 
-JITTER_TIME_PERDIV = 100e-6          # <-- set up the jitter time/div, most scopes 10 div of entire display, so 100 ns/div = 1 us window, 50 ns/div = 500 ns window, etc.
+JITTER_TIME_PERDIV = .75         # <-- set up the jitter time/div, most scopes 10 div of entire display, so 100 ns/div = 1 us window, 50 ns/div = 500 ns window, etc.
 SCOPE_HDIVS        = 10             # 6 Series has 10 horizontal divisions
+CLKIN_N = 567                       # clkin* VDC bias applies
 
 MEAS_SLOTS = {
     "Vpp_input_ch1":      1,        # Vpp_in on CH1
@@ -34,7 +35,8 @@ JITTER_TYPES = [
     "jitter_mean", 
     "jitter_sigma", 
     "jitter_min",
-    "jitter_max"
+    "jitter_max",
+    "sample size"
 ]
 
 # CSV columns, in order, matching your request.
@@ -43,10 +45,9 @@ CSV_COLUMNS = [
     "Vppin",
     "Vppout",
     "t-delay",
-    "TIE mean",
     "TIE sigma",
-    "TIE min",
-    "TIE max",
+    "clkin_n_mV",
+    "N_jitter",
     "jitter_time_interval",
     "temp",       # the manual label you typed above
     "device"      # the manual label you typed above
@@ -162,6 +163,8 @@ def jitter_setup(inst):
     time.sleep(ACQ_SECONDS)
     inst.write("ACQuire:STATE STOP")
     inst.query("*OPC?")
+    inst.write("ACQuire:STATE RUN")
+    time.sleep(1.0)
 
     # 3. Query stats
     base = f"{m}:RESUlts:ALLAcqs"
@@ -169,13 +172,15 @@ def jitter_setup(inst):
     sigma  = float(inst.query(f"{base}:STDDev?"))
     min_v  = float(inst.query(f"{base}:MINimum?"))
     max_v  = float(inst.query(f"{base}:MAXimum?"))
+    samp_size = int(float(inst.query(f"{base}:POPUlation?")))
     print(f"TIE mean  : {mean_v*1e12:.3f} ps")
     print(f"TIE sigma : {sigma*1e12:.3f} ps")
     print(f"TIE min   : {min_v*1e12:.3f} ps")
     print(f"TIE max   : {max_v*1e12:.3f} ps")
+    print(f"TIE sample size: {samp_size}")
     
 
-    return mean_v, sigma, min_v, max_v
+    return mean_v, sigma, min_v, max_v, samp_size
 
 ## run take screenshot function to record jitter window
 
@@ -258,13 +263,20 @@ def main():
     vals["jitter_time_interval"] = jitter_window_s    # give time interval value
     time.sleep(2)
     
-    results = jitter_setup(inst)          # runs once: (mean, sigma, min, max)
+    results = jitter_setup(inst)          # runs once: (mean, sigma, min, max, sample size)
     for name, value in zip(JITTER_TYPES, results):
         vals[name] = value
     ## print jitter stats to terminal
     for name, v in vals.items():
         print(f"  {name:22s} = {fmt(v)}")
         
+        
+    ## test where measurement to csv are comming from
+    
+    for scope in ("CURRentacq", "ALLAcqs"):
+        for stat in ("MEAN", "STDDev", "MINimum", "MAXimum"):
+            print(scope, stat, inst.query(f"MEASUrement:MEAS4:RESUlts:{scope}:{stat}?").strip())
+    ###############
     ## take screenshot of jitter window
     cond_tag = f"{_safe(input_voltage)}_{_safe(TEMPERATURE)}"
     after_path = os.path.join(SHOT_DIR, f"shot_{cond_tag}_{ts}_after.png")
@@ -284,10 +296,9 @@ def main():
             fmt(vals["Vpp_input_ch1"]),
             fmt(vals["Vpp_output_ch2"]),
             fmt(vals["delta_t_markers"]),
-            fmt(vals["jitter_mean"]),
             fmt(vals["jitter_sigma"]),
-            fmt(vals["jitter_min"]),
-            fmt(vals["jitter_max"]),
+            CLKIN_N,
+            vals["sample size"],
             fmt(vals["jitter_time_interval"]),
             TEMPERATURE,
             DEVICE,
