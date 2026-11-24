@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 # df = pd.read_csv('../data/jitter.csv')
-def scatter_plot_temp(df, outpt, save_path=None, show=True):
+def scatter_plot_temp(df,inpt,outpt, save_path=None, show=True):
     # 2. Forward fill the missing values and clean up temperature names
     # df["temp"] = df["temp"].ffill()
     # df["temp"] = df["temp"].str.extract(r"(-?\d+)")
@@ -19,7 +19,7 @@ def scatter_plot_temp(df, outpt, save_path=None, show=True):
     # Matplotlib automatically extracts the group label to create a perfect native legend
     for temp_label, group in df.groupby("temp"):
         ax.scatter(
-            group[f"{df.columns[1]}"],
+            group[f"{df.columns[inpt]}"],
             group[f"{df.columns[outpt]}"],  
             color=color_map.get(temp_label),  # Match label to our color map
             label=temp_label,  # Assign label explicitly to this plot group

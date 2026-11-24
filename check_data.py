@@ -1,4 +1,8 @@
 import pandas as pd
-df = pd.read_csv('../data/scope_log_11-06.csv')
-print(df.head())
-print(df.columns)
+
+df = pd.read_csv('../data/DA_10MHz_squar_10-20prev.csv')
+df = pd.DataFrame(df)
+col = df.columns
+print(col)
+for i in range(len(col)):
+    print(i, col[i])

@@ -4,18 +4,18 @@ import time
 from datetime import datetime
 
 import pyvisa
-
+from pprint import pprint
 
 # create a new CSV file with headers if it doesn't exist 
 SCOPE_IP      = "192.168.0.90"
 TEMPERATURE   = "20"              # degree C, need to manually input for every temp change
 DEVICE    =  "LMK00105_A"          # device name, need to manually input for every device change,  input in row in the CSV file
 
-CSV_PATH      = "log_1pps_AFG_11-23.csv"     # appended to (created if missing)
-SHOT_DIR      = "ss_1pps_AFG_11-23"       # screen shots will be saved here
-ACQ_SECONDS   = 57600
+CSV_PATH      = "log_1pps_AFG_11-24.csv"     # appended to (created if missing)
+SHOT_DIR      = "ss_1pps_AFG_11-24"       # screen shots will be saved here
+ACQ_SECONDS   = 120
 
-JITTER_TIME_PERDIV = .75         # <-- set up the jitter time/div, most scopes 10 div of entire display, so 100 ns/div = 1 us window, 50 ns/div = 500 ns window, etc.
+JITTER_TIME_PERDIV = 1         # <-- set up the jitter time/div, most scopes 10 div of entire display, so 100 ns/div = 1 us window, 50 ns/div = 500 ns window, etc.
 SCOPE_HDIVS        = 10             # 6 Series has 10 horizontal divisions
 CLKIN_N = 567                       # clkin* VDC bias applies
 
@@ -31,6 +31,8 @@ MEAS_SLOTS = {
     # The exact commands will depend on your scope model and its capabilities.
 
 JITTER_SOURCE_CH = 2                # channel to measure jitter on (CH2 = DUT output)
+
+#jitter_types zipped into dataframe in main funct from output of jitter_setup
 JITTER_TYPES = [
     "jitter_mean", 
     "jitter_sigma", 
@@ -159,15 +161,19 @@ def jitter_setup(inst):
     inst.write("CLEAR")
     inst.query("*OPC?")
     inst.write("ACQuire:STATE RUN")
+    
+    
     print(f"Collecting for {ACQ_SECONDS}s...")  ###  this tell how long jitter stat pts taken
-    time.sleep(ACQ_SECONDS)
-    inst.write("ACQuire:STATE STOP")
-    inst.query("*OPC?")
-    inst.write("ACQuire:STATE RUN")
-    time.sleep(1.0)
-
-    # 3. Query stats
-    base = f"{m}:RESUlts:ALLAcqs"
+    time.sleep(ACQ_SECONDS)  # aquires samples
+    inst.write("ACQuire:STATE STOP") # stops 
+    inst.query("*OPC?") 
+    print()
+    print("taking jitter measurements...")
+    print()
+   
+    # 3. Query stats --->> this where the jitter vals are measured that go to csv
+    
+    base = f"{m}:RESUlts:CURRentacq"
     mean_v = float(inst.query(f"{base}:MEAN?"))
     sigma  = float(inst.query(f"{base}:STDDev?"))
     min_v  = float(inst.query(f"{base}:MINimum?"))
@@ -179,8 +185,12 @@ def jitter_setup(inst):
     print(f"TIE max   : {max_v*1e12:.3f} ps")
     print(f"TIE sample size: {samp_size}")
     
-
-    return mean_v, sigma, min_v, max_v, samp_size
+    print()
+    print("jitter measure take, system pause for screenshot...")
+    print()
+    
+###  
+    return mean_v, sigma, min_v, max_v, samp_size  
 
 ## run take screenshot function to record jitter window
 
@@ -228,6 +238,7 @@ def main():
         return "".join(c if (c.isalnum() or c == "-") else "_" for c in txt).strip("_") 
     
     ## save initial time interval, query asking what is the current time interval in s/div
+    
     original_tb = float(inst.query("HORizontal:SCAle?").strip())
     print(f"  original timebase = {original_tb:g} s/div (will restore on exit)")
     time.sleep(2)
@@ -259,34 +270,60 @@ def main():
     # ========================================================================
     
     ## will set preestablished jitter time window, print in terminal
-    jitter_window_s = jitter_time_window(inst, JITTER_TIME_PERDIV)
-    vals["jitter_time_interval"] = jitter_window_s    # give time interval value
+    # 1. time interval change
+    
+    jitter_window_s = jitter_time_window(inst, JITTER_TIME_PERDIV)  ## --->> this function actually adjust window to jitter-time-interval
+    vals["jitter_time_interval"] = jitter_window_s    # give time interval value --> this goes to csv
     time.sleep(2)
     
-    results = jitter_setup(inst)          # runs once: (mean, sigma, min, max, sample size)
-    for name, value in zip(JITTER_TYPES, results):
-        vals[name] = value
-    ## print jitter stats to terminal
-    for name, v in vals.items():
-        print(f"  {name:22s} = {fmt(v)}")
-        
-        
-    ## test where measurement to csv are comming from
     
-    for scope in ("CURRentacq", "ALLAcqs"):
-        for stat in ("MEAN", "STDDev", "MINimum", "MAXimum"):
-            print(scope, stat, inst.query(f"MEASUrement:MEAS4:RESUlts:{scope}:{stat}?").strip())
+    
+        
+    # ## test where measurement to csv are comming from
+    
+    # for scope in ("CURRentacq", "ALLAcqs"):
+    #     for stat in ("MEAN", "STDDev", "MINimum", "MAXimum"):
+    #         print(scope, stat, inst.query(f"MEASUrement:MEAS4:RESUlts:{scope}:{stat}?").strip())
+            
+    ## this is the above function where the jitter measurements are made that go into csv summary
+    ## jitter_set tell how long jitter time aquire
+    
+    # 2. pause for aquire time in jitter_setup function
+    # 3. measure jitter stats, store in vals
+     #4. pause scope 
+    results = jitter_setup(inst)          # runs once: (mean_v, sigma, min_v, max_v, samp_size --> jitter_setup output)
+    for name, value in zip(JITTER_TYPES, results):
+        vals[name] = value   ### --->> is where jitter vals that go to csv
+        
+    ## print jitter stats to terminal, not to csv
+    for name, v in vals.items():
+        print(f"  {name:22s} = {fmt(v)}")  # e.g. jitter_mean = 2.6e-12
+        
+               
     ###############
-    ## take screenshot of jitter window
+    # 5. take screenshot of jitter window, with the scope paused from jitter 
     cond_tag = f"{_safe(input_voltage)}_{_safe(TEMPERATURE)}"
     after_path = os.path.join(SHOT_DIR, f"shot_{cond_tag}_{ts}_after.png")
     take_screenshot(inst, after_path)
     print("Screenshot (after)  ->", after_path)
+    
+    
+    
     time.sleep(2)
     
     ### creating and/or appending measurement in vals to csv
-    new_file = not os.path.exists(CSV_PATH)   ## CSV_PATH = "scope_log.csv"
+    new_file = not os.path.exists(CSV_PATH)   ## if csv does not exist, creates it
     
+    # 6. appending the values collected on vals dictionary
+    print()
+    print('this is the vals measurement set = ')
+    print()
+    pprint(vals)
+    
+    print()
+    print("appending vals measurements to csv...")
+    print()
+    time.sleep(1)
     with open(CSV_PATH, "a", newline="") as f:
         w = csv.writer(f)
         if new_file:
@@ -304,8 +341,13 @@ def main():
             DEVICE,
         ])
         print(f"Row appended -> {CSV_PATH}")
-        
+    print()
+    print("return scope to run state...")
+    print()
+    inst.write("ACQuire:STATE RUN")
+    time.sleep(1)
     
+    ### returns to original time base
     inst.write(f"HORizontal:SCAle {original_tb}")
     print(f"  timebase restored to {original_tb:g} s/div")
     
