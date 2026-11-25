@@ -29,8 +29,8 @@ def scatter_plot_temp(df,inpt,outpt, save_path=None, show=True):
         )
 
     # 6. Customize plot details
-    plt.title(f"{df.columns[outpt]} vs. {df.columns[1]}")
-    plt.xlabel(f"{df.columns[1]}")
+    plt.title(f"{df.columns[outpt]} vs. {df.columns[inpt]}")
+    plt.xlabel(f"{df.columns[inpt]}")
     plt.ylabel(f"{df.columns[outpt]}")
     plt.grid(True, linestyle="--", alpha=0.6)
 
@@ -49,6 +49,7 @@ def scatter_plot_temp(df,inpt,outpt, save_path=None, show=True):
         
         plt.close(fig)
     return fig
+### 
 
 def data_ranges(df, outpt):
     min = np.min(df[f'{df.columns[outpt]}'])

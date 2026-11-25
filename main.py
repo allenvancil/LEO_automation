@@ -1,11 +1,15 @@
 from scatter_plots_PL133 import scatter_plot_temp
 from scatter_plots_PL133 import data_ranges
 import pandas as pd 
-
+import os
 
 col_in = 1
 col_out = 6
 dte = '11-20'
+
+PLOT_PATH = '../plots/'
+plot_dir = os.path.join(PLOT_PATH, f"plots_{dte}")
+os.makedirs(plot_dir, exist_ok=True)
 
 dataset = 'DA_10MHz_squar_10-20prev'
 
@@ -39,7 +43,7 @@ print(df.columns[col_out])
 
 
 
-path = f'../plots/{df.columns[col_in]}_{df.columns[col_out]}_{dte}.png'  ## folder that plot will go to 
+path = f'../plots/{plot_dir}/{df.columns[col_in]}_{df.columns[col_out]}_{dte}.png'  ## folder that plot will go to 
 
 scatter_plt  = scatter_plot_temp(df,col_in,col_out, path, True)
 
