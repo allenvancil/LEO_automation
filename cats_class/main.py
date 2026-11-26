@@ -10,7 +10,7 @@ from pprint import pprint
 # inputs adjusted often
 SCREEN_SHOT_DIR = "../ss_10MHz_11-25"
 CSV_PATH = "../log_10MHz_11-25.csv"
-ACQ_SECONDS = 120
+ACQ_SECONDS = 10
 JITTER_TIME_PERDIV = 1e-6
 
 
@@ -18,6 +18,7 @@ JITTER_TIME_PERDIV = 1e-6
 
 TC_TYPE = "K"  # thermocouple type
 DUT = "LMK00105"
+PSU_CH = 2
 
 # ... TEMPERATURE, DEVICE, CSV_PATH, SHOT_DIR, CLKIN_N as before ...
 CSV_COLUMNS = ["timestamp", 
@@ -36,15 +37,15 @@ CSV_COLUMNS = ["timestamp",
 
 # specify instruments in use --
 SCOPE_ON = True
-PSU_ON = False
-SGEN_ON = False
-DMM_ON   = False
+PSU_ON = True
+SGEN_ON = True
+DMM_ON   = True
 
 
 SCOPE_IP = "192.168.0.90"   # scope
-PSU_IP   = "192.168.0.91"   # clk_n pwr supply
-AFG_IP   = "192.168.0.92"   # sig gen 
-DMM_IP  = "192.168.0.93"   # dmm, Tc
+PSU_IP   = "192.168.0.122"   # clk_n pwr supply
+AFG_IP   = "192.168.0.184"   # sig gen 
+DMM_IP  = "192.168.0.123"   # dmm, Tc
 
 
 
@@ -78,19 +79,29 @@ def main():
 # 2a. connect to devices if present
 
     scope = Scope(SCOPE_IP) if SCOPE_ON else None
-    psu   = PowerSupply(PSU_IP) if PSU_ON else None
+    psu   = PowerSupply(PSU_IP, PSU_CH) if PSU_ON else None
     afg   = SignalGen(AFG_IP) if SGEN_ON else None
     dmm   = DMM(DMM_IP) if DMM_ON else None
 
     for dev in (scope, psu, afg, dmm):
         if dev:
             dev.connect()
-
+            time.sleep(2)
+            print(f"connected to {dev}")
+        else:
+            print(f"  ! connection failed for {dev}")
     if dmm:
         dmm.setup_temperature(f"{TC_TYPE}")  # confirm Tc type
         
+    print()
+    print("finished connecting instruments...")
+    time.sleep(1)
+    print()      
 # 2b. set up initial timebase
     original_tb = scope.get_timebase()  # save initial, manually set timebase to return to at finish.
+    print(f"  original timebase = {original_tb:g} s/div")
+    time.sleep(1)
+    print()
 
 # 2c. take measurement in slots 1, 2, 3 (Vppin, Vppout, t-delay);
 # so vals for loop up to this point has vppin, vppout, t-delay, <skip jitter>, temp, clk_n_VDC
@@ -100,7 +111,13 @@ def main():
             continue
         vals[name] = scope.read_meas(slot)
     vals["temperature"] = dmm.read_temperature() if dmm else float("nan")
+    time.sleep(2)
+    print('connected to dmm...')
+    print()
     vals["clk_n_VDC"] = psu.read_voltage() if psu else float("nan")
+    time.sleep(2)
+    print('connected to psu...')
+    print()
     
 # 2d. set up screen shot directory
    
@@ -109,11 +126,16 @@ def main():
             
     before_path = os.path.join(SCREEN_SHOT_DIR, f"before_{ts}.png")
     after_path  = os.path.join(SCREEN_SHOT_DIR, f"after_{ts}.png")
+    print()
+    print('created ss folder...')
+    time.sleep(2)
     
 
 # 3. take inital screenshot 
     scope.take_screenshot(before_path)          # build before_path as you do now
-
+    print()
+    print("took inital screen shot")
+    print()
 # 4. 
     vals["jitter_time_interval"] = scope.set_timebase(JITTER_TIME_PERDIV)  
     

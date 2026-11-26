@@ -44,7 +44,8 @@ class Scope:
         self.inst.write(f"HORizontal:SCAle {s_per_div}")  # input from main.py as JITTER_TIME_PERDIV init, then from "original_tb"
         self.inst.query("*OPC?")
         print(f"  timebase = {s_per_div:g} s/div")
-        return s_per_div * SCOPE_HDIVS          # SCOPE_HDIVS input from main.py 
+        jitter_time_interval = s_per_div * SCOPE_HDIV
+        return jitter_time_interval          # SCOPE_HDIVS input from main.py 
     
     def read_meas(self, slot):
         try:
@@ -73,7 +74,7 @@ class Scope:
         self.inst.write(f'FILESystem:DELEte "{remote}"')
 
     def measure_jitter(self, acq_seconds):
-        base = f"MEASUrement:MEAS{MEAS_SLOTS['jitter']}:RESUlts:CURRentacq"
+        base = f"MEASUrement:MEAS{MEAS_SLOTS['jitter']}:RESUlts:ALLAcqs"
         self.inst.write("ACQuire:STOPAfter RUNSTop")
         self.inst.write("ACQuire:STATE STOP")
         self.inst.write("CLEAR")

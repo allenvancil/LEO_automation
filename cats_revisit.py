@@ -189,7 +189,7 @@ def jitter_setup(inst):
     print("jitter measure take, system pause for screenshot...")
     print()
     
-###  
+
     return mean_v, sigma, min_v, max_v, samp_size  
 
 ## run take screenshot function to record jitter window
