@@ -7,19 +7,20 @@ from dmm import DMM
 from pprint import pprint
 
 ################## Inital conditions #################################
-# inputs adjusted often
+
+# -----------------  inputs often adjusted ----------------------------------
+
+RUNS = 10  # number of time to run program
+T_INTERVAL = 60  # seconds between intervals
+
 SCREEN_SHOT_DIR = "../ss_10MHz_11-25"
 CSV_PATH = "../log_10MHz_11-25.csv"
 ACQ_SECONDS = 10
-JITTER_TIME_PERDIV = 1e-6
-
-
-
-
+JITTER_TIME_PERDIV = 100e-6
 TC_TYPE = "K"  # thermocouple type
 DUT = "LMK00105"
 PSU_CH = 2
-
+# -------------------------------------------------------------------------------
 # ... TEMPERATURE, DEVICE, CSV_PATH, SHOT_DIR, CLKIN_N as before ...
 CSV_COLUMNS = ["timestamp", 
                "Vpp_in", 
@@ -112,11 +113,11 @@ def main():
         vals[name] = scope.read_meas(slot)
     vals["temperature"] = dmm.read_temperature() if dmm else float("nan")
     time.sleep(2)
-    print('connected to dmm...')
+    print('query temp...')
     print()
     vals["clk_n_VDC"] = psu.read_voltage() if psu else float("nan")
     time.sleep(2)
-    print('connected to psu...')
+    print('query pwr supply...')
     print()
     
 # 2d. set up screen shot directory
@@ -197,6 +198,16 @@ def main():
     for dev in (scope, psu, afg, dmm):
            if dev:
                dev.close()
+    time.sleep(5)
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":    
+    for i in range(RUNS):
+        start = time.time()
+        print(f"--------------start Run {i+1} of {RUNS}---------------------")
+        main()
+        
+        if i < RUNS - 1:
+            wait = T_INTERVAL - (time.time() - start)
+            if wait > 0:
+                print(f"next run in {wait:.0f} seconds...")
+                time.sleep(wait)
