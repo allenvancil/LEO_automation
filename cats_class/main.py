@@ -10,16 +10,14 @@ from pprint import pprint
 
 # -----------------  inputs often adjusted ----------------------------------
 
-RUNS = 10  # number of time to run program
-T_INTERVAL = 60  # seconds between intervals
 
-SCREEN_SHOT_DIR = "../ss_10MHz_11-25"
-CSV_PATH = "../log_10MHz_11-25.csv"
+
+SCREEN_SHOT_DIR = "../ss_10MHzsqu_11-27"
+CSV_PATH = "../log_10MHzsqu_11-27.csv"
 ACQ_SECONDS = 10
 JITTER_TIME_PERDIV = 100e-6
-TC_TYPE = "K"  # thermocouple type
 DUT = "LMK00105"
-PSU_CH = 2
+
 # -------------------------------------------------------------------------------
 # ... TEMPERATURE, DEVICE, CSV_PATH, SHOT_DIR, CLKIN_N as before ...
 CSV_COLUMNS = ["timestamp", 
@@ -36,21 +34,6 @@ CSV_COLUMNS = ["timestamp",
                "range",
                "DUT"]
 
-# specify instruments in use --
-SCOPE_ON = True
-PSU_ON = True
-SGEN_ON = True
-DMM_ON   = True
-
-
-SCOPE_IP = "192.168.0.90"   # scope
-PSU_IP   = "192.168.0.122"   # clk_n pwr supply
-AFG_IP   = "192.168.0.184"   # sig gen 
-DMM_IP  = "192.168.0.123"   # dmm, Tc
-
-
-
-
 ## puts NAN is if no value
 def fmt(v):
     return "NaN" if v != v else f"{v:.6g}"
@@ -59,7 +42,7 @@ def fmt(v):
 
 ######### Sequence function   ##########################################
 """
-1. manually step up intial scope window
+1. manually set up intial scope window
 2. a. connect to scope, 
    b. save init time interval, 
    c. take measurement in slots 1, 2, 3 (Vppin, Vppout, t-delay)
@@ -73,31 +56,12 @@ def fmt(v):
 
 
 
-def main():
+def main(scope, psu, afg, dmm):
 # make timestamp with date and time
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-# 2a. connect to devices if present
 
-    scope = Scope(SCOPE_IP) if SCOPE_ON else None
-    psu   = PowerSupply(PSU_IP, PSU_CH) if PSU_ON else None
-    afg   = SignalGen(AFG_IP) if SGEN_ON else None
-    dmm   = DMM(DMM_IP) if DMM_ON else None
-
-    for dev in (scope, psu, afg, dmm):
-        if dev:
-            dev.connect()
-            time.sleep(2)
-            print(f"connected to {dev}")
-        else:
-            print(f"  ! connection failed for {dev}")
-    if dmm:
-        dmm.setup_temperature(f"{TC_TYPE}")  # confirm Tc type
-        
-    print()
-    print("finished connecting instruments...")
-    time.sleep(1)
-    print()      
+# 2a. "connect to devices" moved to main_operate.py script
+   
 # 2b. set up initial timebase
     original_tb = scope.get_timebase()  # save initial, manually set timebase to return to at finish.
     print(f"  original timebase = {original_tb:g} s/div")
@@ -127,15 +91,14 @@ def main():
             
     before_path = os.path.join(SCREEN_SHOT_DIR, f"before_{ts}.png")
     after_path  = os.path.join(SCREEN_SHOT_DIR, f"after_{ts}.png")
-    print()
-    print('created ss folder...')
     time.sleep(2)
     
 
 # 3. take inital screenshot 
     scope.take_screenshot(before_path)          # build before_path as you do now
     print()
-    print("took inital screen shot")
+    print(f"send initial screen shot to {before_path}")
+    time.sleep(1)
     print()
 # 4. 
     vals["jitter_time_interval"] = scope.set_timebase(JITTER_TIME_PERDIV)  
@@ -157,6 +120,7 @@ def main():
 
 # takes a screenshot of jitter measurement time window
     scope.take_screenshot(after_path)
+    print(f"send final screen shot to {after_path}")
     
     # ... CSV writing exactly as you have it ...
     
@@ -180,7 +144,7 @@ def main():
             fmt(vals["t_delay"]),
             fmt(vals["jitter_sigma"]),
             fmt(vals["jitter_3sigma"]),
-            fmt(vals["sample_size"]),
+            (vals["sample_size"]),
             fmt(vals["clk_n_VDC"]),
             fmt(vals["temperature"]),
             fmt(vals["jitter_min"]),
@@ -192,22 +156,7 @@ def main():
     print(f"Row appended -> {CSV_PATH}")
     print()
     scope.run()
+    print("return to original time base...")
+    print()
     scope.set_timebase(original_tb)
     
-    
-    for dev in (scope, psu, afg, dmm):
-           if dev:
-               dev.close()
-    time.sleep(5)
-
-if __name__ == "__main__":    
-    for i in range(RUNS):
-        start = time.time()
-        print(f"--------------start Run {i+1} of {RUNS}---------------------")
-        main()
-        
-        if i < RUNS - 1:
-            wait = T_INTERVAL - (time.time() - start)
-            if wait > 0:
-                print(f"next run in {wait:.0f} seconds...")
-                time.sleep(wait)

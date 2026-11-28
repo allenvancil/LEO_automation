@@ -89,7 +89,9 @@ class Scope:
         min_v  = float(self.inst.query(f"{base}:MINimum?"))
         max_v  = float(self.inst.query(f"{base}:MAXimum?"))
         n      = int(float(self.inst.query(f"{base}:POPUlation?")))
+        print()
         print(f"TIE sigma: {sigma*1e12:.3f} ps  (n={n})")
+        time.sleep(2)
         return mean_v, sigma, min_v, max_v, n
 
     def run(self):
